@@ -1,0 +1,183 @@
+@import 'tailwindcss';
+
+/* ============================================================== *
+ *  ren.ai design system
+ *  Themeable: a dark trading-terminal palette and a clean light
+ *  palette share one set of semantic tokens. Components reference
+ *  the tokens; switching [data-theme] retints the whole app.
+ *  Neutrals carry the UI. One brand accent. Green/red = money only.
+ * ============================================================== */
+
+/* ---- DARK (default) ---- */
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --void: #0a0b0e;
+  --base: #0d0f13;
+  --panel: #121519;
+  --panel2: #171a20;
+  --elev: #1c2027;
+  --edge: #23272f;
+  --edge2: #2c313a;
+
+  --ink: #eaecf0;
+  --ink2: #c3c8d2;
+  --muted: #818895;
+  --faint: #5a606c;
+
+  --brand: #00d8c4;
+  --brand2: #19b3ff;
+  --ai: #8b8bff;
+
+  --up: #1fce8f;
+  --down: #f6465d;
+  --warn: #f0a23c;
+
+  --sheen: rgba(255, 255, 255, 0.025);
+  --grid: rgba(255, 255, 255, 0.022);
+  --scroll: #262b34;
+  --scroll-hover: #323845;
+  --skel-a: #161a20;
+  --skel-b: #1d222a;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+/* ---- LIGHT ---- */
+[data-theme='light'] {
+  color-scheme: light;
+  --void: #f5f6f8;
+  --base: #ffffff;
+  --panel: #ffffff;
+  --panel2: #f7f8fa;
+  --elev: #eef1f4;
+  --edge: #e4e7ec;
+  --edge2: #d6dae1;
+
+  --ink: #0f1419;
+  --ink2: #2b323d;
+  --muted: #5c6675;
+  --faint: #98a1b0;
+
+  --brand: #00a99a;
+  --brand2: #0a84ff;
+  --ai: #6361ff;
+
+  --up: #0a9d68;
+  --down: #e0294b;
+  --warn: #c1791a;
+
+  --sheen: rgba(255, 255, 255, 0.6);
+  --grid: rgba(15, 20, 25, 0.04);
+  --scroll: #d2d7df;
+  --scroll-hover: #bcc3cd;
+  --skel-a: #eceff3;
+  --skel-b: #e2e6ec;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 8px 24px rgba(16, 24, 40, 0.06);
+}
+
+/* Expose tokens to Tailwind utilities (inline = retint at runtime). */
+@theme inline {
+  --color-void: var(--void);
+  --color-base: var(--base);
+  --color-panel: var(--panel);
+  --color-panel2: var(--panel2);
+  --color-elev: var(--elev);
+  --color-edge: var(--edge);
+  --color-edge2: var(--edge2);
+
+  --color-ink: var(--ink);
+  --color-ink2: var(--ink2);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+
+  --color-brand: var(--brand);
+  --color-brand2: var(--brand2);
+  --color-ai: var(--ai);
+
+  --color-up: var(--up);
+  --color-down: var(--down);
+  --color-warn: var(--warn);
+
+  /* legacy aliases kept so older utility classes still resolve */
+  --color-teal: var(--brand);
+  --color-cyan: var(--brand2);
+  --color-violet: var(--ai);
+  --color-lime: var(--up);
+  --color-rose: var(--down);
+  --color-amber: var(--warn);
+
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+* { -webkit-font-smoothing: antialiased; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--void);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: 'cv01', 'cv03', 'ss01';
+  transition: background-color .3s ease, color .3s ease;
+}
+
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-thumb { background: var(--scroll); border-radius: 8px; border: 2px solid var(--void); }
+::-webkit-scrollbar-thumb:hover { background: var(--scroll-hover); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ---- type helpers ---- */
+.display { font-family: var(--font-display); letter-spacing: -0.01em; }
+.mono { font-family: var(--font-mono); }
+.tabular { font-variant-numeric: tabular-nums; }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+
+/* ---- surface primitives ---- */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+.card-hover { transition: border-color .2s, transform .2s; }
+.card-hover:hover { border-color: var(--edge2); }
+.hairline { border-color: var(--edge); }
+
+/* subtle top-lit panel sheen */
+.sheen { position: relative; }
+.sheen::before {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, var(--sheen), transparent 38%);
+  pointer-events: none;
+}
+
+/* ---- animations ---- */
+@keyframes pulse-soft { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+@keyframes ring { 0% { transform: scale(.7); opacity: .5; } 100% { transform: scale(1.9); opacity: 0; } }
+@keyframes spin-slow { to { transform: rotate(360deg); } }
+@keyframes sweep { 0% { background-position: -160% 0; } 100% { background-position: 160% 0; } }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+@keyframes dash { to { stroke-dashoffset: 0; } }
+
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--up); animation: blink 1.6s ease-in-out infinite; }
+
+/* shimmering skeleton */
+.skel {
+  background: linear-gradient(90deg, var(--skel-a) 25%, var(--skel-b) 37%, var(--skel-a) 63%);
+  background-size: 200% 100%;
+  animation: sweep 1.4s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+/* faint label */
+.eyebrow { font-size: 10.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+
+/* dotted background grid */
+.grid-bg {
+  background-image: radial-gradient(var(--grid) 1px, transparent 1px);
+  background-size: 22px 22px;
+}

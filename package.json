@@ -1,0 +1,24 @@
+{
+  "name": "renai-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ren.ai — Autonomous Agentic Trading on Bitget. Five Agent Hub analyst lenses fused into a confluence decision engine: Perceive → Confluence → Risk → Execute → Sync, with a live web dashboard and Telegram copy-trade bot.",
+  "type": "module",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "install:all": "npm install && npm --prefix backend install && npm --prefix frontend install",
+    "start": "npm run build:frontend && npm --prefix backend run start",
+    "backend": "npm --prefix backend run start",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:frontend": "npm --prefix frontend run build",
+    "dev": "node scripts/dev.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}
