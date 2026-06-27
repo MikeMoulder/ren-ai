@@ -5,7 +5,7 @@ import type { RenState } from '../types';
 // Participation happens ONLY in the Telegram bot — this modal explains the flow
 // and deep-links there. No keys are ever entered on the website.
 export function TradeCTA({ open, onClose, s }: { open: boolean; onClose: () => void; s: RenState }) {
-  const handle = s.capabilities?.telegramBot || 'renai_trading_bot';
+  const handle = s.capabilities?.telegramBot || 'renai_tradingbot';
   const url = `https://t.me/${handle}`;
 
   return (

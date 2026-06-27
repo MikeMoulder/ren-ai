@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import { WebSocketServer } from 'ws';
 import { config, llmEnabled, bitgetConfigured, telegramEnabled } from '../config.js';
+import { hubStatus } from '../engine/agentHub.js';
+import { TRADE_LOG_FILE } from '../services/tradeLog.js';
 import { log } from '../logger.js';
 import { db } from '../store.js';
 import { bus } from '../services/broadcaster.js';
@@ -34,7 +36,10 @@ export function startWebServer() {
         bitget: bitgetConfigured,
         telegram: telegramEnabled,
         telegramBot: config.telegram.botUsername,
-        agentHub: config.agentHub.enabled,
+        // Truthful: 'live' only once real Skill Hub reads are flowing, not
+        // merely when the bridge is configured.
+        agentHub: hubStatus().live,
+        agentHubConfigured: hubStatus().enabled,
         mode: config.tradingMode,
       },
     });
@@ -42,6 +47,12 @@ export function startWebServer() {
 
   app.get('/api/thoughts', (_req, res) => res.json(db().thoughts.slice(-200)));
   app.get('/api/trades', (_req, res) => res.json(db().trades.slice(-200)));
+  // Full append-only trade ledger (CSV) for offline reference/audit.
+  app.get('/api/trades.csv', (_req, res) => {
+    if (!fs.existsSync(TRADE_LOG_FILE)) return res.type('text/csv').send('');
+    res.type('text/csv').set('Content-Disposition', 'attachment; filename="trades.csv"');
+    fs.createReadStream(TRADE_LOG_FILE).pipe(res);
+  });
   app.get('/api/equity', (_req, res) => res.json(db().equityCurve.slice(-1000)));
   // Public, anonymized community aggregates only — no per-user identity.
   app.get('/api/community', (_req, res) => res.json(communityStats()));

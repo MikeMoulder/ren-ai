@@ -35,6 +35,8 @@ function Card({ snap, delay }: { snap: Snapshot; delay: number }) {
   const up = (snap.change24h ?? 0) >= 0;
   const conf = snap.confluence;
   const score = conf?.score ?? 0;
+  const tr = snap.trend;
+  const brk = tr?.active ? tr.side : null;
 
   return (
     <motion.div
@@ -57,7 +59,16 @@ function Card({ snap, delay }: { snap: Snapshot; delay: number }) {
       </div>
 
       <div className="mt-3 flex items-center justify-between">
-        <span className="eyebrow">Confluence</span>
+        <span className="eyebrow">Breakout signal</span>
+        {brk ? (
+          <Pill tone={brk === 'long' ? 'up' : 'down'}>{brk === 'long' ? '▲ LONG break' : '▼ SHORT break'}</Pill>
+        ) : (
+          <span className="text-[11px] text-faint">— watching</span>
+        )}
+      </div>
+
+      <div className="mt-2.5 flex items-center justify-between">
+        <span className="eyebrow">Confluence gate</span>
         <span className="num text-[12px] font-semibold" style={{ color: scoreVar(score) }}>{fmtScore(score)}</span>
       </div>
       <div className="mt-1.5"><ScoreBar score={score} /></div>

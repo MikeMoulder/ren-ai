@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Brain, ArrowRight, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { Brain, ArrowRight, ShieldCheck, ShieldAlert, Crosshair } from 'lucide-react';
 import type { RenState, Signal, Snapshot, Thought } from '../types';
 import { Panel, Pill, ScoreBar } from './ui';
 import { SKILL_ORDER, SKILL_META, SOURCE_META, scoreVar, fmtScore, textTone, softTone } from '../lib/signals';
@@ -46,17 +46,21 @@ export function DecisionEngine({ s }: { s: RenState }) {
         <Loading />
       ) : (
         <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
-          {/* Lenses */}
+          {/* Lenses (the gate inputs) */}
           <div className="space-y-2.5">
-            <div className="eyebrow mb-1">Agent Hub analyst lenses</div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="eyebrow">Agent Hub analyst lenses</span>
+              <span className="text-[10px] text-faint">confluence gate · can veto</span>
+            </div>
             {SKILL_ORDER.map((skill, i) => {
               const sig = (snap.signals || []).find((x) => x.skill === skill);
               return <SignalRow key={skill} skill={skill} sig={sig} delay={i * 0.05} />;
             })}
           </div>
 
-          {/* Fusion -> conviction -> gate -> action */}
+          {/* Trigger -> gate -> conviction -> risk -> action */}
           <div className="flex flex-col gap-4 lg:border-l lg:border-edge lg:pl-5">
+            <TrendTrigger snap={snap} />
             <Confluence snap={snap} />
             <Pipeline snap={snap} thought={thought} />
           </div>
@@ -96,6 +100,29 @@ function SignalRow({ skill, sig, delay }: { skill: string; sig?: Signal; delay: 
   );
 }
 
+function TrendTrigger({ snap }: { snap: Snapshot }) {
+  const t = snap.trend;
+  const active = !!t?.active;
+  const tone = !active ? 'edge' : t!.side === 'long' ? 'up' : 'down';
+  return (
+    <div className={`rounded-xl border p-4 text-center ${softTone(tone)}`}>
+      <div className="flex items-center justify-center gap-1.5 eyebrow">
+        <Crosshair size={12} /> Trend-Breakout trigger
+      </div>
+      <div className={`num text-[15px] font-bold mt-2 ${textTone(tone)}`}>
+        {active ? (t!.side === 'long' ? '▲ LONG BREAKOUT' : '▼ SHORT BREAKOUT') : 'NO SIGNAL'}
+      </div>
+      {active ? (
+        <div className="text-[11px] text-muted mt-1 num">
+          stop {t!.stop} · {t!.trailMult ?? 3}×ATR trail
+        </div>
+      ) : (
+        <div className="text-[11px] text-faint mt-1">standing aside — no breakout</div>
+      )}
+    </div>
+  );
+}
+
 function Confluence({ snap }: { snap: Snapshot }) {
   const c = snap.confluence;
   const score = c?.score ?? 0;
@@ -103,7 +130,7 @@ function Confluence({ snap }: { snap: Snapshot }) {
   const dirLabel = c?.direction === 'long' ? 'Bullish' : c?.direction === 'short' ? 'Bearish' : 'Neutral';
   return (
     <div className="rounded-xl border border-edge bg-elev/30 p-4 text-center">
-      <div className="eyebrow">Weighted Confluence</div>
+      <div className="eyebrow">Confluence gate <span className="text-faint normal-case">(vetoes the trigger)</span></div>
       <motion.div
         key={score}
         initial={{ scale: 0.9, opacity: 0.6 }}

@@ -73,12 +73,22 @@ async function llmDecide({ perception, positions, equity, risk }) {
     market: perception.snapshots.map((s) => ({
       symbol: s.symbol, price: s.price, regime: s.regime, bias: s.bias,
       confluence: s.confluence, metrics: s.metrics, positioning: s.positioning,
+      // Mechanical strategy triggers (only present when enabled) — advisory.
+      ...(config.mm30.enabled && s.mm30?.active
+        ? { mm30: { side: s.mm30.side, entry: s.mm30.entry, stop: s.mm30.stop, takeProfit: s.mm30.takeProfit, riskPct: s.mm30.riskPct } }
+        : {}),
+      ...(config.trend.enabled && s.trend?.active
+        ? { trendBreakout: { side: s.trend.side, stop: s.trend.stop, trail: `${s.trend.trailMult}xATR` } }
+        : {}),
     })),
     dataSource: perception.dataSource,
   };
 
+  let stratNote = '';
+  if (config.mm30.enabled) stratNote += `\n\nA mechanical "mm30" trigger may appear on a symbol (2-candle continuation). Treat it as an extra signal: only act on it when the confluence lenses do not oppose its side. If you open in the mm30 direction, the system uses mm30's stop/takeProfit.`;
+  if (config.trend.enabled) stratNote += `\n\nA "trendBreakout" trigger may appear (EMA-trend + breakout, the validated edge). Prefer acting on it in its side unless confluence opposes. If you open in its direction the system applies a trailing stop (no fixed take-profit) — so let winners run and do not "close" early on minor wobbles.`;
   const messages = [
-    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'system', content: SYSTEM_PROMPT + stratNote },
     { role: 'user', content: `Snapshot:\n${JSON.stringify(userPayload)}\n\nConsult skills as needed, then return the JSON decision object.` },
   ];
 
@@ -89,7 +99,7 @@ async function llmDecide({ perception, positions, equity, risk }) {
     const calls = msg.tool_calls || [];
     if (!calls.length) {
       const parsed = extractJSON(msg.content ?? '');
-      return sanitize(Array.isArray(parsed?.decisions) ? parsed.decisions : [], perception);
+      return attachMm30Plans(sanitize(Array.isArray(parsed?.decisions) ? parsed.decisions : [], perception), perception);
     }
     for (const call of calls) {
       const skill = TOOL_TO_SKILL[call.function?.name];
@@ -108,7 +118,26 @@ async function llmDecide({ perception, positions, equity, risk }) {
   // Out of rounds — make one final non-tool call for the decision.
   const final = await chat([...messages, { role: 'user', content: 'Return the JSON decision object now.' }]);
   const parsed = extractJSON(final.content ?? '');
-  return sanitize(Array.isArray(parsed?.decisions) ? parsed.decisions : [], perception);
+  return attachMm30Plans(sanitize(Array.isArray(parsed?.decisions) ? parsed.decisions : [], perception), perception);
+}
+
+// When the LLM opens in the same direction as an active mechanical signal, ride
+// that signal's concrete plan (otherwise risk.js falls back to its ATR stop).
+function attachMm30Plans(decisions, perception) {
+  const bySymbol = Object.fromEntries(perception.snapshots.map((s) => [s.symbol, s]));
+  for (const d of decisions) {
+    const want = d.action === 'open_long' ? 'long' : d.action === 'open_short' ? 'short' : null;
+    if (!want) continue;
+    const snap = bySymbol[d.symbol];
+    if (config.trend.enabled && snap?.trend?.active && snap.trend.side === want) {
+      d.plan = { stop: snap.trend.stop }; // trailing only, no fixed TP
+      d.strategy = 'trend';
+      d.trailDist = snap.trend.trailDist;
+    } else if (config.mm30.enabled && snap?.mm30?.active && snap.mm30.side === want) {
+      d.plan = { stop: snap.mm30.stop, takeProfit: snap.mm30.takeProfit };
+    }
+  }
+  return decisions;
 }
 
 async function chat(messages, tools) {
@@ -173,6 +202,9 @@ function ruleBrain(perception, positions) {
 
     // Manage an open position first.
     if (pos) {
+      // Trend trades exit purely on their trailing stop — never close on a
+      // confluence wobble (cutting winners early is what breaks trend-following).
+      if (pos.strategy === 'trend') return d(s.symbol, 'hold', 0.5, 0, `Holding ${pos.side} trend: trailing stop manages exit.`);
       const wrongWay =
         (pos.side === 'long' && c.direction === 'short') ||
         (pos.side === 'short' && c.direction === 'long');
@@ -180,7 +212,11 @@ function ruleBrain(perception, positions) {
       return d(s.symbol, 'hold', 0.5, 0, `Holding ${pos.side}: confluence ${c.score} (${sig}).`);
     }
 
-    // Flat — only act when technical has a regime AND confluence agrees.
+    // Flat — choose the entry trigger.
+    if (config.trend.enabled) return trendEntry(s, c, sig);
+    if (config.mm30.enabled) return mm30Entry(s, c, sig);
+
+    // Default: act when technical has a regime AND confluence agrees.
     const techDirectional = s.regime !== 'unclear' && s.bias !== 'flat';
     if (techDirectional && c.direction === 'long' && s.bias === 'long') {
       return d(s.symbol, 'open_long', conv(c), size(c, s), `Long confluence ${c.score} (${sig}); ${c.agree} lenses agree.`);
@@ -190,6 +226,51 @@ function ruleBrain(perception, positions) {
     }
     return d(s.symbol, 'hold', 0.3, 0, `Edge unclear: regime ${s.regime}, confluence ${c.score} (${sig}).`);
   });
+}
+
+// Trend-Breakout entry: EMA-trend + breakout fires the trigger; confluence may
+// veto if it opposes. Carries the initial stop + trailing distance so risk.js
+// sizes to the stop and the live loop ratchets it. No fixed take-profit.
+function trendEntry(s, c, sig) {
+  const t = s.trend || { active: false };
+  if (!t.active) return d(s.symbol, 'hold', 0.3, 0, `No trend breakout (regime ${s.regime}).`);
+
+  const opposed = c.direction === (t.side === 'long' ? 'short' : 'long');
+  if (config.trend.requireConfluence && opposed) {
+    return d(s.symbol, 'hold', 0.3, 0, `Trend ${t.side} vetoed: confluence ${c.score} opposes (${sig}).`);
+  }
+  const agree = c.direction === t.side;
+  const conviction = clamp(0.5 + (agree ? c.strength * 0.4 : 0) - c.conflict * 0.05, 0.5, 0.95);
+  const action = t.side === 'long' ? 'open_long' : 'open_short';
+  const decision = d(s.symbol, action, conviction, 0.7,
+    `Trend-breakout ${t.side} (trail ${t.trailMult}×ATR, SL ${round2(t.stop)}); ${agree ? `confluence ${c.score} agrees` : `confluence neutral (${c.score})`}.`);
+  decision.plan = { stop: t.stop }; // no takeProfit → trailing-stop exit only
+  decision.strategy = 'trend';
+  decision.trailDist = t.trailDist;
+  return decision;
+}
+
+// MM30 entry: the 2-candle pattern fires the trigger; the confluence lenses
+// confirm or veto. Walk-forward showed the mechanical edge is weak, so the
+// confluence gate (must not OPPOSE the pattern) is what earns the trade. The
+// concrete stop/TP from the MM30 plan rides along so risk.js sizes to it.
+function mm30Entry(s, c, sig) {
+  const mm = s.mm30 || { active: false };
+  if (!mm.active) return d(s.symbol, 'hold', 0.3, 0, `No MM30 setup (regime ${s.regime}).`);
+
+  const opposed = c.direction === (mm.side === 'long' ? 'short' : 'long');
+  if (config.mm30.requireConfluence && opposed) {
+    return d(s.symbol, 'hold', 0.3, 0, `MM30 ${mm.side} vetoed: confluence ${c.score} opposes (${sig}).`);
+  }
+  const agree = c.direction === mm.side;
+  // Baseline conviction clears the risk gate; confluence agreement adds to it.
+  const conviction = clamp(0.5 + (agree ? c.strength * 0.4 : 0) - c.conflict * 0.05, 0.5, 0.95);
+  const action = mm.side === 'long' ? 'open_long' : 'open_short';
+  const note = agree ? `confluence ${c.score} agrees` : `confluence neutral (${c.score})`;
+  const decision = d(s.symbol, action, conviction, 0.7,
+    `MM30 ${mm.side} @ ${mm.entry} (SL ${mm.stop}, ${mm.riskPct}% risk); ${note} (${sig}).`);
+  decision.plan = { stop: mm.stop, takeProfit: mm.takeProfit }; // honored by risk.js
+  return decision;
 }
 
 function signalText(s) {
@@ -203,3 +284,4 @@ const d = (symbol, action, conviction, sizePct, reason) => ({ symbol, action, co
 const conv = (c) => clamp(0.4 + c.strength * 0.55 - c.conflict * 0.08, 0.4, 0.95);
 const size = (c, s) => clamp(0.4 + c.strength * 0.6 - s.metrics.atrPct / 12, 0.3, 1);
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
+const round2 = (x) => Math.round(x * 100) / 100;

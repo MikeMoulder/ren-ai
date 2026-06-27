@@ -53,7 +53,20 @@ export async function placeFuturesMarket(creds, { symbol, side, size, reduceOnly
   const args = withMode(['futures', 'futures_place_order', '--orders', JSON.stringify([order])]);
   const res = await run(args, creds);
   if (!res.ok) log.warn(`bgc place order failed (${symbol} ${side}):`, res.error);
+  else log.ok(`bgc order ${symbol} ${side} -> id=${extractOrderId(res) || 'n/a'}`);
   return res;
+}
+
+// Pull the Bitget order id out of a place-order response, tolerant of the
+// several shapes bgc/Bitget return (batch successList, single data object, or
+// a bare id). Returns null when none is present — proof the order didn't land.
+export function extractOrderId(res) {
+  const d = res?.data;
+  if (!d) return null;
+  if (typeof d === 'string') return d || null;
+  const node = d.data || d;
+  const first = node?.successList?.[0] || (Array.isArray(node) ? node[0] : node);
+  return first?.orderId || first?.orderID || node?.orderId || null;
 }
 
 export async function getPositions(creds) {

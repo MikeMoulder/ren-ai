@@ -5,9 +5,10 @@ import { perceive } from './perception.js';
 import { decide } from './brain.js';
 import { gateAndSize, RISK } from './risk.js';
 import { executeAgent, closeAgent } from './executor.js';
-import { markToMarket, checkStops } from './paperBroker.js';
+import { markToMarket, checkStops, trailStops } from './paperBroker.js';
 import { fanoutTrade } from './copytrader.js';
 import { bus } from '../services/broadcaster.js';
+import { appendTradeLog } from '../services/tradeLog.js';
 
 // ---------------------------------------------------------------------------
 // THE LOOP. Every LOOP_SECONDS:
@@ -30,6 +31,12 @@ export function startAgent() {
   s.agent.mode = config.tradingMode;
   persist();
   log.ok(`ren.ai online · mode=${config.tradingMode} · symbols=${config.symbols.join(',')} · loop=${config.loopSeconds}s`);
+  if (config.trend.enabled) {
+    log.ok(`Trend-Breakout ENABLED · ${config.candleGranularity} candles · EMA${config.trend.emaFast}/${config.trend.emaSlow} + ${config.trend.breakoutLen}-bar breakout · ${config.trend.trailMult}×ATR trailing stop · confluence-${config.trend.requireConfluence ? 'gated' : 'advisory'}`);
+  }
+  if (config.mm30.enabled) {
+    log.ok(`MM30 trigger ENABLED · ${config.candleGranularity} candles · trend-gate EMA${config.mm30.emaStackFilter} · ${config.mm30.rr}R · confluence-${config.mm30.requireConfluence ? 'gated' : 'advisory'} (re-validate in paper — see backtest_log.md)`);
+  }
   tick(); // run immediately
   timer = setInterval(tick, config.loopSeconds * 1000);
 }
@@ -45,7 +52,13 @@ export function agentSnapshot() {
     positions: Object.values(s.positions),
     tick: s.lastTick,
     risk: RISK,
-    config: { mode: config.tradingMode, symbols: config.symbols, loopSeconds: config.loopSeconds },
+    config: {
+      mode: config.tradingMode,
+      symbols: config.symbols,
+      loopSeconds: config.loopSeconds,
+      granularity: config.candleGranularity,
+      strategy: config.trend.enabled ? 'Trend-Breakout' : config.mm30.enabled ? 'MM30' : 'Confluence',
+    },
   };
 }
 
@@ -75,7 +88,8 @@ async function tick() {
     s.lastTick = tickPayload;
     bus.tick(tickPayload);
 
-    // 3. PROTECT — stops/targets first, before new ideas
+    // 3. PROTECT — ratchet trailing stops, then close anything that hit a stop/target
+    trailStops(priceMap);
     for (const hit of checkStops(priceMap)) {
       const closed = await closeAgent(hit.symbol, priceMap[hit.symbol], hit.why);
       if (closed) await emitTrade(closed);
@@ -115,6 +129,7 @@ async function tick() {
       setStatus('trading');
       const fill = await executeAgent({ decision, sized, snapshot });
       pushCapped('trades', fill, 800);
+      appendTradeLog(fill);
       log.trade(`${fill.action} ${fill.symbol} size=${fill.size} @ ${fill.price} (${fill.leverage}x) — ${fill.reason}`);
       const copyResults = await fanoutTrade(fill, s.agent.equity);
       await bus.trade(fill, copyResults);
@@ -131,6 +146,7 @@ async function tick() {
 
 async function emitTrade(closed) {
   pushCapped('trades', closed, 800);
+  appendTradeLog(closed);
   log.trade(`CLOSE ${closed.symbol} @ ${closed.price} pnl=${closed.pnl} (${closed.why})`);
   const copyResults = await fanoutTrade(closed, db().agent.equity);
   await bus.trade(closed, copyResults);

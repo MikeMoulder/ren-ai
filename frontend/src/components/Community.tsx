@@ -26,11 +26,6 @@ export function Community({ s, onTrade }: { s: RenState; onTrade: () => void }) 
           <Send size={14} /> Trade with ren.ai
         </button>
       </div>
-
-      <p className="mt-3 text-[10.5px] text-faint leading-relaxed">
-        Privacy by design: this dashboard shows only anonymized aggregates — no names,
-        balances, or keys are ever exposed.
-      </p>
     </Panel>
   );
 }

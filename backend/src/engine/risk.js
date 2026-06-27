@@ -40,7 +40,10 @@ export function gateAndSize({ decision, snapshot, equity, positions, dayPnlPct }
   // --- sizing ---
   const price = snapshot.price;
   const atr = Math.max(snapshot.metrics.atr, price * 0.001); // floor to avoid div-by-0
-  const stopDistance = RISK.atrStopMult * atr;
+  // A decision may carry an explicit stop/TP plan (e.g. MM30's below-B stop +
+  // 1R target). When present we size to that stop; otherwise default to ATR.
+  const plan = decision.plan && decision.plan.stop != null ? decision.plan : null;
+  const stopDistance = Math.max(plan ? Math.abs(price - plan.stop) : RISK.atrStopMult * atr, price * 0.0005);
 
   const riskBudget = equity * RISK.riskPerTradePct * conviction * (0.5 + 0.5 * sizePct);
   let size = riskBudget / stopDistance; // base units (e.g. BTC)
@@ -52,8 +55,12 @@ export function gateAndSize({ decision, snapshot, equity, positions, dayPnlPct }
   size = roundSize(size, price);
   if (size <= 0) return { allow: false, reason: 'computed size rounds to 0', action };
 
-  const stopPrice = action === 'open_long' ? price - stopDistance : price + stopDistance;
-  const takeProfit = action === 'open_long' ? price + stopDistance * 1.6 : price - stopDistance * 1.6;
+  const stopPrice = plan ? plan.stop
+    : action === 'open_long' ? price - stopDistance : price + stopDistance;
+  // A plan with no takeProfit (e.g. trend-breakout) means trailing-stop exit only.
+  const takeProfit = plan
+    ? (decision.plan.takeProfit != null ? decision.plan.takeProfit : null)
+    : action === 'open_long' ? price + stopDistance * 1.6 : price - stopDistance * 1.6;
 
   return {
     allow: true,
@@ -62,8 +69,10 @@ export function gateAndSize({ decision, snapshot, equity, positions, dayPnlPct }
     notional: round(size * price, 2),
     leverage: round((size * price) / (equity / RISK.maxPositions), 2),
     stopPrice: round(stopPrice, 2),
-    takeProfit: round(takeProfit, 2),
+    takeProfit: takeProfit == null ? null : round(takeProfit, 2),
     riskUsd: round(riskBudget, 2),
+    strategy: decision.strategy || null,
+    trailDist: decision.trailDist != null ? round(decision.trailDist, 2) : null,
   };
 }
 

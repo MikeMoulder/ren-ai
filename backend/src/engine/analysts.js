@@ -1,4 +1,5 @@
 import { config } from '../config.js';
+import { readSkill } from './agentHub.js';
 
 // ---------------------------------------------------------------------------
 // The analyst layer — ren.ai's five perception lenses, modeled on the Bitget
@@ -85,24 +86,16 @@ function simulated(skill, snapshot) {
     news: score > 0.15 ? 'Constructive headlines & narrative.'
       : score < -0.15 ? 'Cautious/negative news flow.' : 'No market-moving headlines.',
   };
-  return mk(skill, round(score), summaries[skill] || 'No strong read.', 'simulated');
+  return mk(skill, round(score), summaries[skill] || 'No strong read.', 'derived');
 }
 
 // ---- Agent Hub bridge ------------------------------------------------------
-// When AGENT_HUB_ENABLED is set we *attempt* a live skill read and label it
-// 'agent-hub'; any failure degrades to the derived/simulated read above so the
-// loop never stalls. The bridge command is intentionally pluggable.
+// When AGENT_HUB_ENABLED is set we attempt a live Skill Hub read (via the Agent
+// Hub MCP server or a configured bridge command) and label it 'agent-hub'; any
+// failure degrades to the derived/simulated read above so the loop never
+// stalls. All transport details live in ./agentHub.js.
 async function viaAgentHub(skill, snapshot) {
-  if (!config.agentHub.enabled) return null;
-  try {
-    // Integration seam: a real deployment wires the Bitget Agent Hub MCP/CLI
-    // here (e.g. spawning `bitget-hub` or calling an MCP tool) and maps its
-    // response to { score, summary }. Left as a guarded stub so the project
-    // runs with zero extra setup; returning null falls back gracefully.
-    return null;
-  } catch {
-    return null;
-  }
+  return readSkill(skill, snapshot);
 }
 
 // ---- Public API ------------------------------------------------------------

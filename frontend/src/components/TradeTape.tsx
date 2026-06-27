@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Receipt, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Receipt, ArrowUpRight, ArrowDownRight, Download, ExternalLink } from 'lucide-react';
 import type { RenState, Trade } from '../types';
 import { Panel, Pill } from './ui';
 import { price, signed, clock } from '../lib/format';
@@ -57,6 +57,24 @@ export function TradeTape({ s }: { s: RenState }) {
               {f}
             </button>
           ))}
+          <span className="mx-1 h-4 w-px bg-edge" />
+          <a
+            href="/api/trades"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="View live JSON feed"
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-muted hover:text-brand hover:bg-brand/10 transition"
+          >
+            <ExternalLink size={12} /> JSON
+          </a>
+          <a
+            href="/api/trades.csv"
+            download
+            title="Download live log (CSV)"
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-muted hover:text-brand hover:bg-brand/10 transition"
+          >
+            <Download size={12} /> CSV
+          </a>
         </div>
       }
       className="h-full"

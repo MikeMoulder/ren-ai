@@ -12,7 +12,7 @@ import { verifyCredentials } from '../bitget/cli.js';
 // ---------------------------------------------------------------------------
 
 const HELP = [
-  '<b>◆ ren.ai — Autonomous Trading Agent</b>',
+  '<b>ren.ai</b>',
   '',
   'I trade crypto perps on Bitget and can mirror every move to <b>your</b> account.',
   '',
@@ -40,6 +40,7 @@ export function startTelegramBot() {
       { command: 'mode', description: 'copy or alert' },
       { command: 'risk', description: 'Set risk factor' },
       { command: 'status', description: 'Agent + your status' },
+      { command: 'unbind', description: 'Remove your keys' },
       { command: 'help', description: 'Help' },
     ],
   });

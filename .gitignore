@@ -1,8 +1,29 @@
+# dependencies & build output
 node_modules/
 dist/
+
+# secrets & local env
 .env
 .env.local
+.env.*.local
+
+# logs
 *.log
+
+# runtime state (regenerated on boot) — keep the dir, drop the state files
 backend/data/*.json
 !backend/data/.gitkeep
+backend/data/archive/
+*.bak
+*.backfill-bak
+
+# NOTE: backend/data/cache/  and  backend/data/trades.csv are intentionally
+# committed — the cache makes the backtest reproducible offline and trades.csv
+# is the live trade-log proof referenced in the README.
+
+# editor / OS cruft
 .DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp

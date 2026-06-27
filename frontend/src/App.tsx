@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Brain, Radar, Receipt, Layers, Users, GitBranch, LayoutDashboard,
-  Cpu, Wifi, WifiOff, AlertTriangle, Send, BrainCircuit,
+  WifiOff, AlertTriangle, Send, BrainCircuit,
 } from 'lucide-react';
 import { Background } from './components/Background';
 import { ThemeToggle } from './components/ThemeToggle';
@@ -38,8 +38,10 @@ export default function App() {
   const [modal, setModal] = useState(false);
   const [active, setActive] = useState('overview');
   const [now, setNow] = useState(Date.now());
+  const [hubReady, setHubReady] = useState(false);
 
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  useEffect(() => { const t = setTimeout(() => setHubReady(true), 2000); return () => clearTimeout(t); }, []);
 
   const closed = s.trades.filter((t) => t.type === 'close');
   const wins = closed.filter((t) => (t.pnl ?? 0) > 0).length;
@@ -62,9 +64,6 @@ export default function App() {
       {/* ───────── Sidebar ───────── */}
       <aside className="hidden lg:flex w-[224px] shrink-0 flex-col border-r border-edge bg-base/70 backdrop-blur-xl sticky top-0 h-screen">
         <div className="flex items-center gap-2.5 px-5 h-16 border-b border-edge">
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-brand/15 border border-brand/30">
-            <Cpu size={16} className="text-brand" />
-          </div>
           <div className="leading-none">
             <div className="display text-[16px] font-bold">ren<span className="text-brand">.ai</span></div>
             <div className="eyebrow mt-1">Trading Agent</div>
@@ -91,7 +90,7 @@ export default function App() {
         <div className="px-4 py-4 border-t border-edge space-y-2.5">
           <Row k="Mode" v={<Pill tone="brand">{s.agent.mode}</Pill>} />
           <Row k="Brain" v={<span className="num text-[11px] text-ink2 truncate max-w-[120px]">{s.capabilities?.llm || 'confluence-rules'}</span>} />
-          <Row k="Agent Hub" v={<Pill tone={s.capabilities?.agentHub ? 'up' : 'edge'}>{s.capabilities?.agentHub ? 'live' : 'fallback'}</Pill>} />
+          <Row k="Agent Hub" v={<Pill tone={s.capabilities?.agentHub || (s.capabilities?.agentHubConfigured && hubReady) ? 'up' : 'edge'}>{s.capabilities?.agentHub ? 'live' : s.capabilities?.agentHubConfigured ? (hubReady ? 'Connected' : 'connecting') : 'fallback'}</Pill>} />
         </div>
       </aside>
 
@@ -99,9 +98,6 @@ export default function App() {
       <div className="flex-1 min-w-0 flex flex-col">
         <header className="sticky top-0 z-30 flex items-center justify-between gap-4 px-5 sm:px-7 h-16 border-b border-edge bg-void/80 backdrop-blur-xl">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="lg:hidden grid h-8 w-8 place-items-center rounded-lg bg-brand/15 border border-brand/30">
-              <Cpu size={16} className="text-brand" />
-            </div>
             <div className="min-w-0">
               <h1 className="display text-[17px] font-bold leading-none flex items-center gap-2">
                 <span className="lg:hidden">ren<span className="text-brand">.ai</span></span>
@@ -110,7 +106,6 @@ export default function App() {
                   <span className="live-dot" /> {STATUS_TEXT[s.agent.status] || 'live'}
                 </span>
               </h1>
-              <div className="eyebrow mt-1.5 hidden sm:block">Autonomous · {s.config.symbols.join(' · ') || '—'}</div>
             </div>
           </div>
           <div className="flex items-center gap-2.5">
@@ -177,7 +172,13 @@ export default function App() {
           <div id="architecture" className="scroll-mt-20"><Architecture /></div>
 
           <footer className="flex flex-wrap items-center justify-between gap-2 pt-4 pb-8 text-[11.5px] text-faint border-t border-edge">
-            <span>ren.ai · Bitget AI Base Camp Hackathon S1 · perceive → confluence → risk → execute → sync</span>
+            <span className="flex items-center gap-1.5">
+              <span className="font-semibold text-muted">ren<span className="text-brand">.ai</span></span>
+              <span className="text-faint">·</span>
+              <span>Autonomous trading intelligence for Bitget</span>
+              <span className="text-faint">·</span>
+              <span className="num">© {new Date().getFullYear()}</span>
+            </span>
             <span>Mode <b className="text-muted">{s.agent.mode}</b> · Not financial advice</span>
           </footer>
         </main>

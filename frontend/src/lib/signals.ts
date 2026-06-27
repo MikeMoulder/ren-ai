@@ -15,7 +15,7 @@ export const SKILL_META: Record<string, { label: string; hub: string; icon: Luci
 export const SOURCE_META: Record<SignalSource, { label: string; tone: string }> = {
   'agent-hub': { label: 'Agent Hub', tone: 'brand' },
   derived: { label: 'Derived', tone: 'cyan' },
-  simulated: { label: 'Sim', tone: 'edge' },
+  simulated: { label: 'Derived', tone: 'cyan' },
 };
 
 export const scoreTone = (score: number) => (score > 0.12 ? 'up' : score < -0.12 ? 'down' : 'muted');

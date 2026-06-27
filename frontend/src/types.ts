@@ -22,16 +22,27 @@ export interface Metrics {
   price: number; ema20: number; ema50: number; emaSpreadPct: number;
   rsi: number; adx: number; atr: number; atrPct: number;
 }
+// Trend-Breakout mechanical signal (the strategy trigger).
+export interface TrendSignal {
+  active: boolean;
+  side?: 'long' | 'short';
+  stop?: number;        // initial stop
+  trailDist?: number;   // chandelier trailing distance
+  trailMult?: number;   // N in N×ATR
+  strategy?: string;
+}
 export interface Snapshot {
   symbol: string; price: number; change24h: number;
   regime: 'trend' | 'range' | 'unclear'; bias: 'long' | 'short' | 'flat';
   metrics: Metrics; funding: number; positioning: string;
+  trend?: TrendSignal;
   signals?: Signal[]; confluence?: Confluence | null;
 }
 export interface Position {
   symbol: string; side: 'long' | 'short'; size: number; entry: number;
   notional: number; uPnl: number; markPrice?: number; stopPrice: number;
-  takeProfit: number; openedAt: number; reason: string;
+  takeProfit: number | null; openedAt: number; reason: string;
+  strategy?: string; trailDist?: number; peak?: number;
 }
 export interface Thought {
   at: number; symbol: string; action: string; conviction: number; reason: string;
@@ -55,13 +66,13 @@ export interface Agent {
 }
 export interface Capabilities {
   llm: string; llmProvider: string; bitget: boolean; telegram: boolean;
-  telegramBot?: string; agentHub?: boolean; mode: string;
+  telegramBot?: string; agentHub?: boolean; agentHubConfigured?: boolean; mode: string;
 }
 export interface RenState {
   agent: Agent;
   positions: Position[];
   risk: any;
-  config: { mode: string; symbols: string[]; loopSeconds: number };
+  config: { mode: string; symbols: string[]; loopSeconds: number; granularity?: string; strategy?: string };
   thoughts: Thought[];
   trades: Trade[];
   equityCurve: { t: number; equity: number }[];

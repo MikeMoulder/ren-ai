@@ -1,224 +1,120 @@
-# ◆ ren.ai — Autonomous Trading Agent on Bitget
+# ren.ai — Autonomous Trading Agent on Bitget
 
-> An AI agent that fuses **five Agent Hub analyst lenses** into a single
-> **confluence** decision, trades crypto perpetuals on Bitget, and shows
-> **every signal, decision, and trade live** — then carries its subscribers
-> along on every move.
->
-> Built for the **Bitget AI Base Camp Hackathon S1** · Track 1 — Trading Agent.
+**Bitget AI Base Camp Hackathon S1 · Track 1 · Trading Agent**
 
-ren.ai runs a complete, no-human-in-the-loop cycle every few seconds:
+ren.ai is an AI trading agent that watches the crypto market on its own, decides when to trade, places the trades, and manages the risk — no human in the loop. Every decision and every trade is shown live on a public dashboard.
+
+### 🔗 Live links (no login needed)
+
+| What | Link |
+| --- | --- |
+| **Live dashboard** | **https://ren-trading-ai.duckdns.org** |
+| **Download trade log (CSV)** | https://ren-trading-ai.duckdns.org/api/trades.csv |
+| **Live trade feed (JSON)** | https://ren-trading-ai.duckdns.org/api/trades |
+| **Backtest report** | [backtest_log.md](backtest_log.md) |
+| **How the strategy works** | [strategy_details.md](strategy_details.md) |
+
+---
+
+## 1. What problem it solves
+
+Most "trading bots" follow fixed if-this-then-that rules. They can't read the wider market — the trend, the crowd, the news, the macro backdrop — and weigh it all before acting.
+
+ren.ai does. It runs a full loop every few seconds: **look at the market → form a view → check the risk → trade → record it.** It trades only when several independent signals agree, and a hard risk layer can always veto. The goal isn't to trade often — it's to trade only when the odds are genuinely in its favour, and to prove it openly with a live, downloadable record.
+
+## 2. The strategy (the thesis)
+
+The core edge is a **trend-breakout** strategy, validated on real Bitget data before going live. In plain words:
+
+- **Only trade with the trend.** Go long only when the market is already trending up (fast moving average above slow), short only when trending down. Never fight the tide.
+- **Enter on a breakout.** Buy when price breaks above its recent high; sell short when it breaks below its recent low. A breakout in the direction of the trend is the signal that a move is starting.
+- **Cut losers fast, let winners run.** There's no fixed profit target. Losing trades are stopped out quickly at a small, fixed loss; winning trades are held with a trailing stop that follows the price. Most trades are small losses — but the occasional big winner more than pays for them.
+
+That asymmetry (many small losses, a few large wins) is the whole point. Full detail and the exact rules are in **[strategy_details.md](strategy_details.md)**.
+
+Before any trade is placed, the idea also has to pass a **five-lens confluence check** — technical, sentiment, macro, on-chain/market-intel, and news. If those lenses disagree with the trade, it's skipped. This is where the Bitget Agent Hub skills plug in.
+
+## 3. How it works (and how to run it)
+
+ren.ai runs one simple loop on a schedule:
 
 ```
-  PERCEIVE  →  CONFLUENCE  →  RISK-GATE  →  EXECUTE  →  SYNC
- (5 lenses)   (LLM fuses)     (sizing)     (Bitget)   (copy + alert)
+Perceive  →  Decide  →  Risk  →  Execute  →  Sync
+(market)     (signals)   (gate)   (order)    (dashboard)
 ```
 
-It reads the market through five **Bitget Agent Hub** Skill-Hub lenses
-(technical, sentiment, macro, market-intel, news), fuses them into one weighted
-**conviction**, sizes each idea through a hard risk layer, executes on Bitget,
-and **mirrors every trade to its subscribers' own accounts** — while streaming
-its entire decision engine to a live web dashboard and a Telegram bot.
+1. **Perceive** — pull live 4-hour candles from Bitget, work out the trend and indicators.
+2. **Decide** — run the trend-breakout strategy and the five confluence lenses.
+3. **Risk** — size the position (risk 1% of equity per trade), enforce hard limits (max 2 open positions, capped leverage, daily loss limit). The risk layer always wins.
+4. **Execute** — place the trade on the chosen account (paper / demo / live).
+5. **Sync** — stream the decision and the trade to the dashboard, the trade log, and (optionally) a Telegram copy-trade bot.
 
-**It runs end-to-end with zero credentials.** With no keys set, ren.ai uses
-**real Bitget market prices**, derived/simulated analyst lenses, a transparent
-confluence rule engine, and an internal paper-fill engine — so a judge can
-`npm start` and immediately watch it think and trade. Add an LLM key to upgrade
-the brain to a **tool-calling** model that calls the skills itself; add Bitget
-demo keys to route fills to Bitget Demo Trading; users bind keys in the Telegram
-bot to turn on copy-trade.
+### Run it locally
 
----
-
-## 1. The thesis (why this exists)
-
-**Problem.** Traditional quant bots execute *predefined rules* over a single data
-source. They can't reconcile a bullish chart against bearish positioning, a
-risk-off macro tape, or a fresh news catalyst — and they can't explain
-themselves. Most "copy trading" is opaque: you mirror a number, not a reason.
-
-**What ren.ai does.** It closes the loop an agent uniquely can:
-1. **Perceives** the market through **five analyst lenses** (the Bitget Agent Hub
-   Skill Hub): `technical-analysis`, `sentiment-analyst`, `macro-analyst`,
-   `market-intel`, `news-briefing`.
-2. **Fuses** them into a single weighted **confluence** conviction — technical
-   sets the regime; the other four confirm, dampen, or veto.
-3. **Reasons** with an LLM that **calls the skills as tools** and returns
-   *structured, explained* decisions — falling back to a transparent confluence
-   rule engine so it's always runnable.
-4. **Gates** every idea through ATR-based risk budgeting (it often chooses to do
-   nothing — the hardest thing to encode in rules).
-5. **Executes** on Bitget (paper / demo / live via one flag) and **syncs** the
-   move to every subscriber's *own* account, scaled to *their* equity & risk.
-
-**My take on AI trading.** The edge of an agent isn't faster execution; it's
-*judgment under conflicting signals* and *legibility*. ren.ai is built so every
-decision is inspectable — the Decision Engine shows each lens's score, its
-provenance, and how they fused — and every risk rule wins ties against the model.
-The agent is allowed to be smart, but never allowed to be reckless: the risk
-layer is deterministic code the LLM cannot override. That separation is the whole
-design.
-
----
-
-## 2. What you get
-
-| Surface | What it shows / does |
-|---|---|
-| **Web dashboard** | Animated, **light/dark** visualization of the agent: KPIs, equity curve, agent core, the **Decision Engine** (5-lens confluence → conviction → risk gate → action), market perception, an expandable **Reasoning Stream**, a full **Trade Log**, open positions, and **anonymized** community stats. No user PII, ever. |
-| **Telegram bot** | The **only** place users participate: `/bind` Bitget keys (encrypted), pick `copy`/`alert`, set a `/risk` factor, and get real-time alerts with the agent's reasoning. |
-| **Decision engine** | The autonomous loop: perceive (5 lenses) → confluence → risk → execute → copy-fanout → broadcast. |
-
----
-
-## 3. Quick start
+Requirements: **Node.js 20+**.
 
 ```bash
-# 1. install (root installs both workspaces)
-npm run install:all
-
-# 2. (optional) configure — works with NO edits (paper mode + rule engine)
-cp .env.example .env
-
-# 3. build the UI and serve everything from one port:
-npm start                 # → http://localhost:8787   (UI + API + WS + agent)
+git clone <your-repo-url>
+cd "Bitget AI"
+npm run install:all          # installs root + backend + frontend
+cp .env.example .env         # then edit .env (see below)
+npm start                    # builds the frontend and starts the agent + dashboard
 ```
 
-That single command serves the web UI, REST API, and WebSocket on **one origin**.
-A terminal dashboard also redraws live in the process you launched.
+Open **http://localhost:8787** — the dashboard, API, and live trade feed are all served from there.
 
-**Prefer hot-reload?**
-```bash
-npm run dev:backend       # :8787  API + WS + agent loop + terminal dashboard
-npm run dev:frontend      # :5173  Vite (proxies /api + /ws to :8787)
-```
+The agent runs in **paper mode by default — no API keys and no real money are needed** to see it work. To go further, set these in `.env`:
 
-### Turn on the good stuff (all optional)
+| Setting | What it does |
+| --- | --- |
+| `TRADING_MODE` | `paper` (default, simulated), `demo` (Bitget testnet), or `live` |
+| `SYMBOLS` | Which markets to watch, e.g. `BTCUSDT,ETHUSDT` |
+| `BITGET_API_KEY` / `SECRET_KEY` / `PASSPHRASE` | Needed only for `demo` / `live` |
+| `AGENT_HUB_ENABLED` | Turn on the Bitget Agent Hub skill lenses |
+| `LLM_API_KEY` | Optional — let an LLM narrate/assist the decision |
 
-| Want… | Set in `.env` |
-|---|---|
-| **LLM brain** (calls skills as tools) | `OPENROUTER_API_KEY=...` (model defaults to `google/gemini-2.0-flash-001`) |
-| **Bitget Qwen** brain instead | `LLM_PROVIDER=qwen` · `LLM_BASE_URL=https://hackathon.bitgetops.com/v1` · `LLM_MODEL=qwen3.6-plus` · `LLM_API_KEY=...` |
-| **Live Agent Hub** skill reads | `AGENT_HUB_ENABLED=true` (+ bridge command) — lenses badge as `Agent Hub` instead of derived/sim |
-| **Bitget Demo Trading** execution | `TRADING_MODE=demo` + `BITGET_API_KEY/SECRET/PASSPHRASE` (demo keys) |
-| **Telegram bot** | `TELEGRAM_BOT_TOKEN=...` from @BotFather · `TELEGRAM_BOT_USERNAME=...` |
-| **Live** (real funds) | `TRADING_MODE=live` + live keys ⚠️ |
+## 4. The trade log (the proof)
+
+Every trade the agent makes is written to an **append-only CSV ledger** you can download and audit. Each row has the timestamp, market, direction, price, size, leverage, stop, profit/loss, and the account balance before and after — exactly the fields the hackathon asks for.
+
+- **Download the live log:** https://ren-trading-ai.duckdns.org/api/trades.csv
+- **Live JSON feed:** https://ren-trading-ai.duckdns.org/api/trades
+- It's also in the repo at [backend/data/trades.csv](backend/data/trades.csv).
+
+You can also click **CSV** / **JSON** in the dashboard's Trade Log panel to open either directly.
+
+## 5. The backtest (the evidence)
+
+The trend-breakout edge was tested on **10 crypto markets, 4-hour candles, ~5,000 bars each**, net of trading fees and slippage. Splitting the data into a training half and an unseen test half:
+
+| | Trades | Win rate | Expectancy | Return | Max drawdown |
+| --- | --- | --- | --- | --- | --- |
+| **Out-of-sample (test)** | 51 | 47% | **+0.445R** | **+22.7%** | 7% |
+
+The strategy stays profitable on data it never saw — which is the test that matters. The full report, the exact command to reproduce it, and the honest caveats are in **[backtest_log.md](backtest_log.md)**. The backtest uses the *same* strategy code the live agent runs, so the two can't drift apart.
 
 ---
 
-## 4. The decision engine (the core)
+## Tech stack
 
-Everything lives in [`backend/src/engine/`](backend/src/engine/). The loop is
-[`agent.js`](backend/src/engine/agent.js). One cycle:
+- **Backend:** Node.js, Express, WebSocket — the agent loop, Bitget data, risk, paper broker, trade ledger.
+- **Frontend:** React + Vite + Tailwind — the live dashboard.
+- **Bitget Agent Hub:** the five analyst skill lenses (macro, sentiment, technical, market-intel, news) feed the confluence check.
+- **Deploy:** a single Node process serves the dashboard, the API, and the live feed; bound to a public HTTPS URL via Caddy.
 
-### Step 1 — Perceive · [`perception.js`](backend/src/engine/perception.js) + [`analysts.js`](backend/src/engine/analysts.js)
-For each symbol we pull **200 live 15m candles + ticker** from Bitget's public API
-(no auth). [`indicators.js`](backend/src/engine/indicators.js) computes EMA20/50,
-RSI(14), ATR(14), and an ADX-style trend score, then `classifyRegime()` distills
-the worldview (trend / range / unclear). [`analysts.js`](backend/src/engine/analysts.js)
-then runs the **five Agent Hub lenses** over the snapshot, each returning a
-normalized score in `[-1, 1]` with a **provenance** tag:
+## Repo map
 
-- `agent-hub` — a live read from a configured Agent Hub skill bridge
-- `derived` — computed from real Bitget data (technical, funding/sentiment)
-- `simulated` — a transparent, clearly-labeled placeholder (no extra keys)
+| Path | What's there |
+| --- | --- |
+| [backend/src/engine/](backend/src/engine/) | the loop, strategies, risk, broker, confluence lenses |
+| [backend/src/engine/strategies/trendBreakout.js](backend/src/engine/strategies/trendBreakout.js) | the live strategy (shared with the backtest) |
+| [backend/src/backtest/](backend/src/backtest/) | reproducible backtests |
+| [backend/data/trades.csv](backend/data/trades.csv) | the trade ledger |
+| [frontend/src/](frontend/src/) | the dashboard |
+| [strategy_details.md](strategy_details.md) · [backtest_log.md](backtest_log.md) | strategy + evidence |
 
-`confluence()` fuses the lenses with configurable weights into one conviction:
-`{ score, direction, agree, conflict, contributors }`.
+## Disclaimer
 
-### Step 2 — Reason · [`brain.js`](backend/src/engine/brain.js)
-With an LLM key, the brain runs a **tool-calling loop**: the five skills are
-exposed as OpenAI-style function tools (`read_technical`, `read_sentiment`, …).
-The model calls the lenses it needs, we fulfil each via `analysts.js`, and it
-returns strict-JSON decisions citing the deciding signals:
+ren.ai runs in **paper mode** by default and is built for the hackathon. Nothing here is financial advice. Live trading uses real money and real risk — only enable it if you understand and accept that.
 
-```json
-{"decisions":[{"symbol":"BTCUSDT","action":"open_long","conviction":0.72,"sizePct":0.6,"reason":"technical + sentiment long, macro neutral, confluence +0.61"}]}
-```
-
-**With no LLM key**, a transparent **confluence rule engine** reads the same fused
-signal and produces the same decision shape — so the agent is *always* runnable
-and *always* explainable.
-
-### Step 3 — Risk-gate & size · [`risk.js`](backend/src/engine/risk.js)
-The brain proposes; risk disposes. `gateAndSize()` enforces a min conviction, max
-concurrent positions, one position per symbol, and a daily loss halt; sizes by an
-**ATR risk-budget** (risk ~1% of equity per trade, scaled by conviction) with a
-leverage cap, stop = 2×ATR, take-profit = 3.2×ATR. **The risk layer is
-deterministic code the model cannot override.**
-
-### Step 4 — Execute · [`executor.js`](backend/src/engine/executor.js)
-Routes the sized order: `paper` → internal [`paperBroker.js`](backend/src/engine/paperBroker.js);
-`demo`/`live` → the **`bgc` CLI** (`bitget-client`). Stops/take-profits are checked
-*before* new ideas each cycle.
-
-### Step 5 — Sync · [`copytrader.js`](backend/src/engine/copytrader.js) + [`broadcaster.js`](backend/src/services/broadcaster.js)
-On every fill we **fan out to subscribers**, trading each on *their own* account
-(their encrypted keys, via `bgc`), sized **proportionally** to their equity ×
-personal `riskFactor`. Simultaneously the event streams to every dashboard over
-WebSocket and to Telegram with the human-readable reasoning.
-
----
-
-## 5. Participation & privacy
-
-**The website shows no user PII.** Account binding and copy-trade configuration
-happen **only in the Telegram bot** — the site's "Trade with ren.ai" button
-deep-links there. Keys are encrypted at rest with **AES-256-GCM**
-([`secrets.js`](backend/src/secrets.js)); the public API exposes only **anonymized
-community aggregates** (`subscribers`, `copying`, `alerting`, `totalMirrored`) —
-never names, balances, or key tails. ren.ai only ever places **futures orders** —
-never withdrawals.
-
-```
-/bind API_KEY SECRET PASSPHRASE   →  encrypted, verified
-/mode copy | alert                →  mirror trades, or just get alerts
-/risk 1.0                         →  scale your size vs a 1x mirror
-/status                           →  agent + your subscription status
-```
-
----
-
-## 6. Project structure
-
-```
-backend/src/
-  engine/      agent.js · perception.js · indicators.js · analysts.js
-               brain.js · risk.js · executor.js · paperBroker.js · copytrader.js
-  bitget/      publicClient.js (market data) · cli.js (bgc wrapper)
-  services/    users.js (binding + community stats) · broadcaster.js (WS+TG hub)
-  telegram/    bot.js (commands) · api.js (zero-dep Bot API)
-  web/         server.js (Express REST + WebSocket)
-  store.js · secrets.js · config.js · logger.js · tui.js · index.js
-frontend/src/
-  App.tsx · useRen.ts (WS+REST live state) · types.ts · theme.tsx
-  lib/         format.ts · signals.ts
-  components/  DecisionEngine · AgentCore · EquityChart · MarketGrid
-               ThoughtStream · TradeTape · Positions · Community · TradeCTA
-               Architecture · ThemeToggle · Background · ui
-```
-
-## 7. API reference
-
-| Method | Route | Purpose |
-|---|---|---|
-| GET | `/api/state` | Full snapshot: agent, positions, last tick (with signals + confluence), thoughts, trades, equity, **community aggregates**, capabilities |
-| GET | `/api/thoughts` `/api/trades` `/api/equity` `/api/community` | Individual feeds (community = anonymized aggregates only) |
-| POST | `/api/users/:id/{mode,risk,active}` | Admin controls (header `x-admin-token`) |
-| WS | `/ws` | Live stream: `snapshot`, `tick`, `thought`, `trade`, `status` |
-
-> There is **no web key-binding endpoint** — participation is Telegram-only by design.
-
----
-
-## 8. Safety & honest scope
-
-- **Default is paper.** No real orders until you explicitly set `demo`/`live` keys.
-- The risk layer is deterministic and caps size/leverage regardless of the brain.
-- `macro` / `market-intel` / `news` lenses are **simulated** unless the Agent Hub
-  bridge is enabled — the dashboard labels every signal's provenance honestly.
-- Copy-trade sizing is best-effort; always test with **Demo** keys.
-- This is a hackathon MVP, not audited production software. **Not financial advice.**
-
-Built with the Bitget Agent Hub toolchain (`bitget-client` / `bgc`) and an
-OpenAI-compatible LLM. — *Perceive → Confluence → Risk → Execute → Sync.*
+*Built for Bitget AI Base Camp Hackathon S1.*

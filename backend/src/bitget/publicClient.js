@@ -9,7 +9,7 @@ import { log } from '../logger.js';
 // ---------------------------------------------------------------------------
 
 const BASE = 'https://api.bitget.com';
-const GRAN = '15m';
+const GRAN = config.candleGranularity;
 
 const synthState = new Map(); // symbol -> { price, t }
 let liveOnce = null; // null=unknown, true/false after first probe
