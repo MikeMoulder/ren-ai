@@ -12,9 +12,21 @@ const BASE = 'https://api.bitget.com';
 const GRAN = config.candleGranularity;
 
 const synthState = new Map(); // symbol -> { price, t }
+const lastLive = new Map(); // symbol -> last known LIVE price (anchors synthetic fallback)
 let liveOnce = null; // null=unknown, true/false after first probe
 
-const SEED_PRICE = { BTCUSDT: 65000, ETHUSDT: 3400, SOLUSDT: 150, default: 100 };
+// Rough reference prices, ONLY used to seed the synthetic walk on the very first
+// tick before any live data has been seen for a symbol. Once a live price has
+// been observed we anchor the fallback to that instead (see synthTicker). A bad
+// seed here previously caused catastrophic fills: an unseeded symbol (e.g. XRP)
+// fell to `default: 100`, and a synthetic tick of ~100 tripped a short's stop
+// and realized a fabricated five-figure loss.
+const SEED_PRICE = {
+  BTCUSDT: 65000, ETHUSDT: 3400, SOLUSDT: 150, BNBUSDT: 550,
+  XRPUSDT: 1, DOGEUSDT: 0.2, ADAUSDT: 0.5, AVAXUSDT: 25,
+  LINKUSDT: 12, LTCUSDT: 43,
+  default: 100,
+};
 
 async function getJSON(url, ms = 6000) {
   const ctrl = new AbortController();
@@ -35,6 +47,7 @@ export async function getTicker(symbol) {
     const row = j?.data?.[0];
     if (row && row.lastPr) {
       if (liveOnce === null) { liveOnce = true; log.ok('market data: LIVE from Bitget public API'); }
+      lastLive.set(symbol, Number(row.lastPr)); // anchor future synthetic fallbacks
       return {
         symbol,
         price: Number(row.lastPr),
@@ -71,8 +84,11 @@ export async function getCandles(symbol, limit = 200) {
 }
 
 // --------- synthetic fallback (geometric brownian-ish walk) ----------------
+// Prefer the last observed LIVE price so a transient API failure produces a
+// price continuous with reality, not a static seed. Fall back to the seed table
+// only for a symbol we have never seen live.
 function basePrice(symbol) {
-  return SEED_PRICE[symbol] ?? SEED_PRICE.default;
+  return lastLive.get(symbol) ?? SEED_PRICE[symbol] ?? SEED_PRICE.default;
 }
 
 function synthTicker(symbol) {

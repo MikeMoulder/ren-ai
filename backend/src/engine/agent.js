@@ -73,6 +73,12 @@ async function tick() {
     const perception = await perceive();
     const priceMap = Object.fromEntries(perception.snapshots.map((x) => [x.symbol, x.price]));
 
+    // Snapshot each open position's last good reference price BEFORE markToMarket
+    // overwrites markPrice with this tick's (possibly bad) price. Used by the
+    // stop circuit-breaker below.
+    const refPrice = {};
+    for (const p of Object.values(s.positions)) refPrice[p.symbol] = p.markPrice ?? p.entry;
+
     // 2. MARK
     const { uPnlTotal, marketEquity } = markToMarket(priceMap);
     recordEquity(marketEquity);
@@ -91,7 +97,16 @@ async function tick() {
     // 3. PROTECT — ratchet trailing stops, then close anything that hit a stop/target
     trailStops(priceMap);
     for (const hit of checkStops(priceMap)) {
-      const closed = await closeAgent(hit.symbol, priceMap[hit.symbol], hit.why);
+      const px = priceMap[hit.symbol];
+      const ref = refPrice[hit.symbol];
+      // Circuit-breaker: never realize a stop/target against a price that jumped
+      // implausibly since the last tick (bad ticker / synthetic fallback). Hold
+      // the position and re-evaluate next tick rather than book a fabricated PnL.
+      if (config.maxTickMove > 0 && ref && Math.abs(px - ref) / ref > config.maxTickMove) {
+        log.warn(`ren.ai: ignoring ${hit.why} on ${hit.symbol} — implausible price ${px} vs ${ref} (${perception.dataSource}); holding position`);
+        continue;
+      }
+      const closed = await closeAgent(hit.symbol, px, hit.why);
       if (closed) await emitTrade(closed);
     }
 

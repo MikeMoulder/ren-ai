@@ -21,6 +21,13 @@ export const config = {
   loopSeconds: num(process.env.LOOP_SECONDS, 30),
   startEquity: num(process.env.START_EQUITY, 10000),
 
+  // Sanity circuit-breaker: the max fraction a symbol's price may move between
+  // consecutive ticks before we treat the new price as bad data and REFUSE to
+  // realize a stop/target against it. A legitimate one-tick move of the majors
+  // is a few percent; 50% is never real and is the signature of a synthetic
+  // fallback or a corrupt ticker. Set 0 to disable.
+  maxTickMove: num(process.env.MAX_TICK_MOVE, 0.5),
+
   // MM30 strategy trigger (the 2-candle continuation pattern). OPT-IN and OFF by
   // default: backtesting showed the cost fixes (maker entry + stop floor) are
   // structural, but the directional edge did NOT survive walk-forward — see
